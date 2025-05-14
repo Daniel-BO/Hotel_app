@@ -1,4 +1,5 @@
 import sqlite3
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QComboBox
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout,
     QLineEdit, QLabel, QFormLayout, QMessageBox, QListWidget
@@ -36,10 +37,18 @@ class HotelApp(QWidget):
         self.setWindowTitle(f"Mini OPERA Hotel PMS - Sesión de {self.usuario}")
         self.setGeometry(100, 100, 400, 300)
         self.layout = QVBoxLayout()
-
         self.huesped_form()
         self.habitaciones_disponibles()
         self.setLayout(self.layout)
+        if self.rol == "admin":
+          self.btn_gestion_usuarios = QPushButton("Gestión de Personal")
+          self.btn_gestion_usuarios.clicked.connect(self.abrir_gestion_usuarios)
+          self.layout.addWidget(self.btn_gestion_usuarios)
+
+    def abrir_gestion_usuarios(self):
+      dialog = GestionUsuarios()
+      dialog.exec_()
+        
 
     def huesped_form(self):
         form_layout = QFormLayout()
@@ -130,6 +139,75 @@ class LoginWindow(QWidget):
             else:
                 QMessageBox.warning(self, "Error", "Usuario o contraseña incorrectos")
 
+class GestionUsuarios(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Gestión de Personal")
+        self.setGeometry(200, 200, 400, 300)
+
+        self.layout = QVBoxLayout()
+        self.lista_usuarios = QListWidget()
+        self.btn_refrescar = QPushButton("Actualizar lista")
+        self.btn_nuevo = QPushButton("Crear nuevo usuario")
+
+        self.btn_refrescar.clicked.connect(self.cargar_usuarios)
+        self.btn_nuevo.clicked.connect(self.crear_usuario)
+
+        self.layout.addWidget(QLabel("Usuarios registrados:"))
+        self.layout.addWidget(self.lista_usuarios)
+        self.layout.addWidget(self.btn_refrescar)
+        self.layout.addWidget(self.btn_nuevo)
+
+        self.setLayout(self.layout)
+        self.cargar_usuarios()
+
+    def cargar_usuarios(self):
+        self.lista_usuarios.clear()
+        with sqlite3.connect(DB_NAME) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT usuario, rol FROM usuarios")
+            for usuario, rol in cursor.fetchall():
+                self.lista_usuarios.addItem(f"{usuario} ({rol})")
+
+    def crear_usuario(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Nuevo usuario")
+        layout = QFormLayout()
+
+        usuario_input = QLineEdit()
+        contrasena_input = QLineEdit()
+        contrasena_input.setEchoMode(QLineEdit.Password)
+        rol_input = QComboBox()
+        rol_input.addItems(["recepcionista", "admin"])
+
+        btn_guardar = QPushButton("Guardar")
+        btn_guardar.clicked.connect(lambda: self.guardar_usuario(
+            dialog, usuario_input.text(), contrasena_input.text(), rol_input.currentText()
+        ))
+
+        layout.addRow("Usuario:", usuario_input)
+        layout.addRow("Contraseña:", contrasena_input)
+        layout.addRow("Rol:", rol_input)
+        layout.addWidget(btn_guardar)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def guardar_usuario(self, dialog, usuario, contrasena, rol):
+        if not usuario or not contrasena:
+            QMessageBox.warning(self, "Error", "Debe ingresar usuario y contraseña")
+            return
+
+        with sqlite3.connect(DB_NAME) as conn:
+            try:
+                conn.execute("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?, ?, ?)",
+                             (usuario, contrasena, rol))
+                conn.commit()
+                QMessageBox.information(self, "Éxito", "Usuario creado correctamente")
+                dialog.close()
+                self.cargar_usuarios()
+            except sqlite3.IntegrityError:
+                QMessageBox.warning(self, "Error", "Nombre de usuario ya existe")
 
 
 if __name__ == "__main__":
