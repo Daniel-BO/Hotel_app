@@ -29,9 +29,11 @@ def init_db():
         conn.commit()
 
 class HotelApp(QWidget):
-    def __init__(self):
+    def __init__(self, usuario_actual, rol_actual):
         super().__init__()
-        self.setWindowTitle("Mini OPERA Hotel PMS")
+        self.usuario = usuario_actual
+        self.rol = rol_actual
+        self.setWindowTitle(f"Mini OPERA Hotel PMS - Sesión de {self.usuario}")
         self.setGeometry(100, 100, 400, 300)
         self.layout = QVBoxLayout()
 
@@ -93,11 +95,47 @@ class HotelApp(QWidget):
             for h in habitaciones:
                 self.lista.addItem(f"Habitación {h[0]} - {h[1]} - ${h[2]:.2f}")
 
+class LoginWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Login - Hotel PMS")
+        self.setGeometry(100, 100, 300, 150)
+
+        layout = QFormLayout()
+        self.usuario_input = QLineEdit()
+        self.contrasena_input = QLineEdit()
+        self.contrasena_input.setEchoMode(QLineEdit.Password)
+        self.login_btn = QPushButton("Iniciar sesión")
+        self.login_btn.clicked.connect(self.verificar_login)
+
+        layout.addRow("Usuario:", self.usuario_input)
+        layout.addRow("Contraseña:", self.contrasena_input)
+        layout.addWidget(self.login_btn)
+
+        self.setLayout(layout)
+
+    def verificar_login(self):
+        usuario = self.usuario_input.text()
+        contrasena = self.contrasena_input.text()
+
+        with sqlite3.connect(DB_NAME) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT rol FROM usuarios WHERE usuario = ? AND contrasena = ?", (usuario, contrasena))
+            resultado = cursor.fetchone()
+
+            if resultado:
+                self.close()
+                self.main_app = HotelApp(usuario, resultado[0])
+                self.main_app.show()
+            else:
+                QMessageBox.warning(self, "Error", "Usuario o contraseña incorrectos")
+
 
 
 if __name__ == "__main__":
     init_db()
     app = QApplication([])
-    ventana = HotelApp()
-    ventana.show()
+    login = LoginWindow()
+    login.show()
     app.exec_()
+    
