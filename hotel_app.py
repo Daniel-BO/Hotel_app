@@ -23,6 +23,9 @@ def init_db():
                 "INSERT INTO habitaciones (numero, tipo, precio_por_noche) VALUES (?, ?, ?)",
                 habitaciones
             )
+        cursor.execute("SELECT COUNT(*) FROM usuarios")
+        if cursor.fetchone()[0] == 0:
+          cursor.execute("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?,?,?)",("admin", "admin123", "admin"))
         conn.commit()
 
 class HotelApp(QWidget):
