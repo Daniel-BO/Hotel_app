@@ -1,4 +1,5 @@
 import sqlite3
+import bcrypt
 from PyQt5.QtWidgets import QDialog, QHBoxLayout, QComboBox
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout,
@@ -24,9 +25,7 @@ def init_db():
                 "INSERT INTO habitaciones (numero, tipo, precio_por_noche) VALUES (?, ?, ?)",
                 habitaciones
             )
-        cursor.execute("SELECT COUNT(*) FROM usuarios")
-        if cursor.fetchone()[0] == 0:
-          cursor.execute("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?,?,?)",("admin", "admin123", "admin"))
+###parte donde se crea el usuario admin esta parque se elimino para que este encriptado el administrador, se maneja con otro scrip
         conn.commit()
 
 class HotelApp(QWidget):
@@ -120,24 +119,26 @@ class LoginWindow(QWidget):
         layout.addRow("Usuario:", self.usuario_input)
         layout.addRow("Contraseña:", self.contrasena_input)
         layout.addWidget(self.login_btn)
-
         self.setLayout(layout)
-
+        
     def verificar_login(self):
-        usuario = self.usuario_input.text()
-        contrasena = self.contrasena_input.text()
+	    usuario = self.usuario_input.text()
+	    contrasena = self.contrasena_input.text()
+	
+	    with sqlite3.connect(DB_NAME) as conn:
+	        cursor = conn.cursor()
+	        cursor.execute("SELECT contrasena, rol FROM usuarios WHERE usuario = ?", (usuario,))
+	        resultado = cursor.fetchone()
+	        if resultado:
+	            hash_guardado, rol = resultado
+	            if bcrypt.checkpw(contrasena.encode('utf-8'),hash_guardado):
+	                self.close()
+	                self.main_app = HotelApp(usuario, rol)
+	                self.main_app.show()
+	                return
+	
+	    QMessageBox.warning(self, "Error", "Usuario o contraseña incorrectos")
 
-        with sqlite3.connect(DB_NAME) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT rol FROM usuarios WHERE usuario = ? AND contrasena = ?", (usuario, contrasena))
-            resultado = cursor.fetchone()
-
-            if resultado:
-                self.close()
-                self.main_app = HotelApp(usuario, resultado[0])
-                self.main_app.show()
-            else:
-                QMessageBox.warning(self, "Error", "Usuario o contraseña incorrectos")
 
 class GestionUsuarios(QDialog):
     def __init__(self):
@@ -194,20 +195,22 @@ class GestionUsuarios(QDialog):
         dialog.exec_()
 
     def guardar_usuario(self, dialog, usuario, contrasena, rol):
-        if not usuario or not contrasena:
-            QMessageBox.warning(self, "Error", "Debe ingresar usuario y contraseña")
-            return
-
-        with sqlite3.connect(DB_NAME) as conn:
-            try:
-                conn.execute("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?, ?, ?)",
-                             (usuario, contrasena, rol))
-                conn.commit()
-                QMessageBox.information(self, "Éxito", "Usuario creado correctamente")
-                dialog.close()
-                self.cargar_usuarios()
-            except sqlite3.IntegrityError:
-                QMessageBox.warning(self, "Error", "Nombre de usuario ya existe")
+	    if not usuario or not contrasena:
+	        QMessageBox.warning(self, "Error", "Debe ingresar usuario y contraseña")
+	        return
+	
+	    hashed = bcrypt.hashpw(contrasena.encode('utf-8'), bcrypt.gensalt())
+	
+	    with sqlite3.connect(DB_NAME) as conn:
+	        try:
+	            conn.execute("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?, ?, ?)",
+	                         (usuario, hashed, rol))
+	            conn.commit()
+	            QMessageBox.information(self, "Éxito", "Usuario creado correctamente")
+	            dialog.close()
+	            self.cargar_usuarios()
+	        except sqlite3.IntegrityError:
+	            QMessageBox.warning(self, "Error", "Nombre de usuario ya existe")
 
 
 if __name__ == "__main__":
