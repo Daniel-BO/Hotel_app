@@ -97,9 +97,6 @@ class HotelApp(QWidget):
 
 if __name__ == "__main__":
     init_db()
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
-      cursor.execute("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?,?,?)",("admin", "admin123", "admin"))
     app = QApplication([])
     ventana = HotelApp()
     ventana.show()
